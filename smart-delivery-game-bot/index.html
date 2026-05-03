@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Delivery Routing Simulation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <div class="header">
+                <h1>🤖 AI Delivery Routing Simulation</h1>
+                <p>Intelligent route optimization with A* pathfinding</p>
+            </div>
+
+            <div class="mode-info" id="modeInfo">
+                <strong>Mode:</strong> <span id="modeText">Click on grid cells to set warehouse (red) or add orders (teal). Click "Start Simulation" to run.</span>
+            </div>
+
+            <div class="grid-container" id="gridContainer"></div>
+
+            <div class="controls">
+                <button class="btn-primary" id="startBtn">Start Simulation</button>
+                <button class="btn-danger" id="resetBtn">Reset</button>
+                <button class="btn-secondary" id="randomBtn">Generate Random Orders</button>
+            </div>
+
+            <div class="legend panel">
+                <div style="grid-column: 1 / -1;">
+                    <h3>Legend</h3>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff6b6b;"></div>
+                    <span>Warehouse</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4ecdc4;"></div>
+                    <span>Order</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff1493;"></div>
+                    <span>Bot</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffd93d;"></div>
+                    <span>Path</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #333;"></div>
+                    <span>Obstacle</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #95e1d3;"></div>
+                    <span>Visited</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="panel">
+                <h2>Setup</h2>
+                <div class="instruction">
+                    <strong>Step 1:</strong> Click a cell to set warehouse (red)<br>
+                    <strong>Step 2:</strong> Add orders by clicking cells<br>
+                    <strong>Step 3:</strong> Set priority for each order<br>
+                    <strong>Step 4:</strong> Click "Start"
+                </div>
+                
+                <h3>Order Priority (1-10)</h3>
+                <input type="number" id="priorityInput" class="priority-input" min="1" max="10" value="5" placeholder="Enter priority">
+
+                <h3>Animation Speed</h3>
+                <div class="animation-speed-control">
+                    <input type="range" id="speedSlider" min="100" max="1000" value="300" step="50">
+                    <span id="speedValue">300ms</span>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Statistics</h2>
+                <div class="stats-item">
+                    <span class="stat-label">Total Distance:</span>
+                    <span class="stat-value" id="totalDistance">0</span>
+                </div>
+                <div class="stats-item">
+                    <span class="stat-label">Total Score:</span>
+                    <span class="stat-value" id="totalScore">0</span>
+                </div>
+                <div class="stats-item">
+                    <span class="stat-label">Orders Delivered:</span>
+                    <span class="stat-value" id="ordersDelivered">0 / 0</span>
+                </div>
+                <div class="stats-item">
+                    <span class="stat-label">Current Step:</span>
+                    <span class="stat-value" id="currentStep">-</span>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Orders</h2>
+                <div class="orders-list" id="ordersList">
+                    <div style="color: #999; font-style: italic;">No orders added yet</div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Route Order</h2>
+                <div class="orders-list" id="routeOrder">
+                    <div style="color: #999; font-style: italic;">Route will be shown after simulation starts</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
