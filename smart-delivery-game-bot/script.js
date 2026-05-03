@@ -12,7 +12,7 @@ let currentPriority = 5;
 let isRunning = false;
 let animationSpeed = 300;
 
-// Simulation state
+// Game state
 let currentPosition = null;
 let visitedOrders = [];
 let currentPath = [];
@@ -21,6 +21,72 @@ let totalDistance = 0;
 let totalScore = 0;
 let routeSequence = [];
 
+let gameTime = 60; // seconds
+let timeLeft = gameTime;
+let gameInterval = null;
+let dynamicOrderInterval = null;
+
+let gameRunning = false;
+let orderExpiryTime = 20; // seconds per order
+
+function startGameTimer() {
+    gameRunning = true;
+    timeLeft = gameTime;
+
+    gameInterval = setInterval(() => {
+        timeLeft--;
+        document.getElementById("timeLeft").textContent = timeLeft;
+
+        if (timeLeft <= 0) {
+            endGame();
+        }
+    }, 1000);
+}
+
+function startDynamicOrders() {
+    stopDynamicOrders();
+
+    dynamicOrderInterval = setInterval(() => {
+        if (!gameRunning) return;
+        if (!warehouse) return;
+
+        const maxAttempts = 50;
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            const x = Math.floor(Math.random() * GRID_WIDTH);
+            const y = Math.floor(Math.random() * GRID_HEIGHT);
+            const cell = grid[y][x];
+            const isWarehouse = warehouse.x === x && warehouse.y === y;
+            const isDuplicate = orders.some(order => order.x === x && order.y === y);
+
+            if (!cell.isObstacle && !isWarehouse && !isDuplicate) {
+                orders.push({
+                    id: Date.now(),
+                    x: x,
+                    y: y,
+                    priority: Math.floor(Math.random() * 10) + 1,
+                    reward: 50,
+                    createdAt: Date.now()
+                });
+
+                updateOrdersList();
+                renderGrid();
+                updateModeInfo(`New dynamic order added at (${x}, ${y}).`);
+                break;
+            }
+
+            attempts++;
+        }
+    }, 5000);
+}
+
+function stopDynamicOrders() {
+    if (dynamicOrderInterval) {
+        clearInterval(dynamicOrderInterval);
+        dynamicOrderInterval = null;
+    }
+}
 // ==================== GRID INITIALIZATION ====================
 
 /**
@@ -155,8 +221,8 @@ function handleCellClick(x, y) {
                 x: x,
                 y: y,
                 priority: priority,
-                score: 0,
-                distance: 0
+                reward: priority * 20,
+                createdAt: Date.now()
             });
             updateModeInfo(`Order added at (${x}, ${y}) with priority ${priority}`);
         }
@@ -257,14 +323,26 @@ function aStar(start, end) {
 // ==================== SCORING AND DECISION MAKING ====================
 
 /**
- * Calculates score for an order based on priority and distance
- * Score = (priority * 10) - (distance * 2)
+ * Calculates score for an order based on reward, travel time, and expiry
  */
 function calculateScore(order, position) {
-    // Calculate distance using A* path length
     const path = aStar(position, { x: order.x, y: order.y });
-    const distance = path.length - 1; // -1 because path includes start
-    const score = (order.priority * 10) - (distance * 2);
+
+    if (path.length === 0) {
+        return { score: -Infinity, distance: Infinity, path: [] };
+    }
+
+    const distance = path.length - 1;
+
+    // time penalty (simulate delay)
+    const timePenalty = distance;
+
+    // expiry penalty
+    const age = (Date.now() - order.createdAt) / 1000;
+    const expiryPenalty = age > orderExpiryTime ? 50 : 0;
+
+    const score = order.reward - timePenalty * 2 - expiryPenalty;
+
     return { score, distance, path };
 }
 
@@ -290,13 +368,19 @@ function chooseNextOrder(position) {
 
     return { order: bestOrder, score: bestScore, distance: bestInfo?.distance || 0, path: bestInfo?.path || [] };
 }
+function endGame() {
+    clearInterval(gameInterval);
+    stopDynamicOrders();
+    gameRunning = false;
 
-// ==================== SIMULATION ====================
+    updateModeInfo(`⛔ Game Over! Final Score: ${totalScore}`);
+}
+// ==================== GAME LOOP ====================
 
 /**
- * Runs the delivery routing simulation
+ * Runs the delivery game loop
  */
-async function runSimulation() {
+async function runGame() {
     if (!warehouse || orders.length === 0) {
         alert('Please set a warehouse and add at least one order');
         return;
@@ -314,11 +398,15 @@ async function runSimulation() {
     totalDistance = 0;
     totalScore = 0;
     routeSequence = [];
+    updateUI(0);
+    updateOrdersList();
+    updateRouteOrder();
+    updateModeInfo('🎮 Game started! Deliver all orders before time runs out.');
 
-    let stepCount = 0;
+    startGameTimer();
+    startDynamicOrders();
 
-    while (visitedOrders.length < orders.length) {
-        // Choose next best order
+    while (gameRunning && visitedOrders.length < orders.length) {
         const { order, score, distance, path } = chooseNextOrder(currentPosition);
 
         if (!order) {
@@ -331,28 +419,26 @@ async function runSimulation() {
         totalDistance += distance;
         totalScore += score;
 
-        // Animate movement along path
         for (let i = 1; i < path.length; i++) {
             addToTraversedPath(currentPosition);
             currentPosition = path[i];
-            stepCount++;
-            updateUI(stepCount);
+            updateUI(visitedOrders.length);
             renderGrid();
             await sleep(animationSpeed);
+
+            if (!gameRunning) return;
         }
 
-        // Keep delivered destination cell highlighted as part of final route
         addToTraversedPath(currentPosition);
 
-        // Mark order as visited
         visitedOrders.push(order.id);
-        updateUI(stepCount);
+        updateUI(visitedOrders.length);
+        updateOrdersList();
+        updateRouteOrder();
         renderGrid();
-        await sleep(animationSpeed);
     }
 
-    updateRouteOrder();
-    updateModeInfo('✅ Simulation complete! All orders delivered.');
+    updateModeInfo('✅ Game complete! All orders delivered.');
     document.getElementById('startBtn').disabled = false;
     document.getElementById('resetBtn').disabled = false;
     document.getElementById('randomBtn').disabled = false;
@@ -409,7 +495,7 @@ function updateOrdersList() {
 function updateRouteOrder() {
     const list = document.getElementById('routeOrder');
     if (routeSequence.length === 0) {
-        list.innerHTML = '<div style="color: #999; font-style: italic;">Route will be shown after simulation starts</div>';
+        list.innerHTML = '<div style="color: #999; font-style: italic;">Route will be shown after game starts</div>';
         return;
     }
 
@@ -424,7 +510,7 @@ function updateRouteOrder() {
 // ==================== BUTTON HANDLERS ====================
 
 /**
- * Resets the entire simulation
+ * Resets the entire game
  */
 function reset() {
     warehouse = null;
@@ -437,12 +523,15 @@ function reset() {
     totalScore = 0;
     routeSequence = [];
     isRunning = false;
+    clearInterval(gameInterval);
+    stopDynamicOrders();
+    gameRunning = false;
 
     createGrid();
     renderGrid();
     updateUI(0);
     updateOrdersList();
-    document.getElementById('routeOrder').innerHTML = '<div style="color: #999; font-style: italic;">Route will be shown after simulation starts</div>';
+    document.getElementById('routeOrder').innerHTML = '<div style="color: #999; font-style: italic;">Route will be shown after game starts</div>';
     updateModeInfo('Grid reset. Click on grid cells to set warehouse (red) or add orders (teal).');
 
     document.getElementById('startBtn').disabled = false;
@@ -483,8 +572,8 @@ function generateRandomOrders() {
                 x: x,
                 y: y,
                 priority: priority,
-                score: 0,
-                distance: 0
+                reward: priority * 20,
+                createdAt: Date.now()
             });
             added++;
         }
@@ -492,12 +581,12 @@ function generateRandomOrders() {
 
     updateOrdersList();
     renderGrid();
-    updateModeInfo(`Generated ${orderCount} random orders. Click "Start Simulation" to begin.`);
+    updateModeInfo(`Generated ${orderCount} random orders. Click "Start Game" to begin.`);
 }
 
 // ==================== EVENT LISTENERS ====================
 
-document.getElementById('startBtn').addEventListener('click', runSimulation);
+document.getElementById('startBtn').addEventListener('click', runGame);
 document.getElementById('resetBtn').addEventListener('click', reset);
 document.getElementById('randomBtn').addEventListener('click', generateRandomOrders);
 
